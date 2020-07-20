@@ -1,0 +1,162 @@
+MODULE HockeyStats;
+// описание логики : https://documentation.lsfusion.org/pages/viewpage.action?pageId=2228240
+REQUIRE System;
+
+CLASS Team 'Команда';
+
+number 'Номер команды' = DATA INTEGER (Team) IN id;
+name 'Название команды' = DATA STRING[30] (Team) IN base NONULL;
+
+CLASS Player 'Игроки';
+
+number 'Номер игрока' = DATA INTEGER (Player) IN id;
+playerName 'ФИО игрока' = DATA STRING[30] (Player) IN base NONULL;
+team = DATA Team (Player) NONULL;
+teamName 'Название команды' (Player i) = name(team(i)) NONULL;
+
+CLASS Game 'Игра';
+
+number 'Номер игры' = DATA INTEGER (Game) IN id;
+date 'Дата игры' = DATA DATE (Game) IN base NONULL;
+hostTeam = DATA Team(Game) NONULL;
+guestTeam = DATA Team(Game) NONULL;
+hostTeamName 'Команда 1' (Game game) = name(hostTeam(game)) NONULL;
+guestTeamName 'Команда 2' (Game game) = name(guestTeam(game)) NONULL;
+
+CONSTRAINT hostTeam(Game team) = guestTeam(team) CHECKED BY hostTeam, guestTeam
+    MESSAGE 'Команда 1 и 2 должны быть разными';
+
+hostGoals 'Голы команды 1' = DATA INTEGER (Game);
+guestGoals 'Голы команды 2' = DATA INTEGER (Game);
+
+CONSTRAINT hostGoals(Game game) = guestGoals(game)
+    MESSAGE 'Игра не может закончиться вничью';
+
+winner(Game game) = IF hostGoals(game) > guestGoals(game)
+                    THEN hostTeam(game)
+                    ELSE guestTeam(game);
+
+looser(Game game) = IF hostGoals(game) > guestGoals(game)
+                    THEN guestTeam(game)
+                    ELSE hostTeam(game);
+
+CLASS Goal 'Голы';
+
+number 'Номер гола' = DATA INTEGER (Goal) IN id;
+game = DATA Game(Goal) NONULL;
+numberGame 'Номер игры' (Goal g) = number(game(g)) NONULL;
+player = DATA Player (Goal) NONULL;
+playerName 'Игрок, забивший гол' (Goal goals) = playerName(player(goals)) NONULL;
+goals 'Голы' = DATA INTEGER (Goal) NONULL;
+
+CONSTRAINT (team(player(Goal g))) != hostTeam(game(g)) AND (team(player(g))) != guestTeam(game(g))
+    MESSAGE 'Команда игрока не играла в этой игре';
+
+countGoals 'Количество голов'= GROUP SUM goals(Goal g) BY player(g);
+
+hostTeamGoalsGame= GROUP SUM goals(Goal g) IF team(player(g)) == hostTeam(game(g)) BY game(g);
+guestTeamGoalsGame= GROUP SUM goals(Goal g) IF team(player(g)) == guestTeam(game(g)) BY game(g);
+CONSTRAINT hostTeamGoalsGame(Game g) > hostGoals(g)
+    MESSAGE 'Количество голов команды 1 больше голов команды 1 в матче';
+CONSTRAINT guestTeamGoalsGame(Game g) > guestGoals(g)
+    MESSAGE 'Количество голов команды 2 больше голов команды 2 в матче';
+
+CLASS GameResult 'Р/И'
+{
+    win 'П',
+    winOT 'ПО',
+    winSO 'ПБ'
+}
+
+resultName 'Имя' (GameResult game) = staticCaption(game) IF game IS GameResult IN base NONULL;
+
+userResult = DATA GameResult(Game);
+result(Game game) = OVERRIDE userResult(game), 
+    (GameResult.win IF ((hostGoals(game) (-) guestGoals(game)) > 1 OR (guestGoals(game) (-) hostGoals(game)) > 1));
+resultName 'Р/И' (Game game) = resultName(result(game));
+
+CONSTRAINT ((hostGoals(Game game) (-) guestGoals(game)) > 1 OR (hostGoals(game) (-) guestGoals(game)) < -1) AND userResult(game) 
+    MESSAGE 'Результат игры определен автоматически';
+
+CONSTRAINT ((hostGoals(Game game) (-) guestGoals(game)) < 2 AND (hostGoals(game) (-) guestGoals(game)) > -2) AND NOT userResult(game) 
+    MESSAGE 'Укажите результат игры';
+
+hostGamesPlayed = GROUP SUM 1 BY hostTeam(Game game);
+guestGamesPlayed = GROUP SUM 1 BY guestTeam(Game game);
+gamesPlayed 'И' (Team team) = hostGamesPlayed(team) (+) guestGamesPlayed(team);
+
+gamesWonBy(Team team, GameResult type) = OVERRIDE [GROUP SUM 1 BY winner(Game game), result(game)](team, type), 0;
+
+gamesWon 'В' (Team team) = gamesWonBy(team, GameResult.win);
+gamesWonOT 'ВО' (Team team) = gamesWonBy(team, GameResult.winOT);
+gamesWonSO 'ВБ' (Team team) = gamesWonBy(team, GameResult.winSO);
+
+gamesLostBy(Team team, GameResult type) = OVERRIDE [GROUP SUM 1 BY looser(Game game), result(game)](team, type), 0;
+
+gamesLost 'П' (Team team) = gamesLostBy(team, GameResult.win);
+gamesLostOT 'ПО' (Team team) = gamesLostBy(team, GameResult.winOT);
+gamesLostSO 'ПБ' (Team team) = gamesLostBy(team, GameResult.winSO);
+
+points 'Очки' (Team team) = gamesWon(team) * 3 + (gamesWonSO(team) + gamesWonOT(team)) * 2 + gamesLostOT(team) + gamesLostSO(team);
+
+hostGoalsScored = GROUP SUM hostGoals(Game game) BY hostTeam(game);
+guestGoalsScored = GROUP SUM guestGoals(Game game) BY guestTeam(game);
+goalsScored 'Кол-во забитых' (Team team) = OVERRIDE hostGoalsScored(team) (+) guestGoalsScored(team), 0 IF team IS Team;
+
+hostGoalsConceded = GROUP SUM guestGoals(Game game) BY hostTeam(game);
+guestGoalsConceded = GROUP SUM hostGoals(Game game) BY guestTeam(game);
+goalsConceded 'Кол-во пропущенных' (Team team) = OVERRIDE hostGoalsConceded(team) (+) guestGoalsConceded(team), 0 IF team IS Team;
+
+place 'Место' (Team team) = PARTITION SUM 1 ORDER DESC points(team), gamesWon(team), gamesWonOT(team), gamesWonSO(team), 
+    (OVERRIDE goalsScored(team) (-) goalsConceded(team), 0), goalsScored(team);
+
+FORM TeamList 'Список команд'
+    OBJECTS team = Team
+    PROPERTIES (team) number, name, NEW, DELETE
+    ORDER number(team), name(team)
+;
+
+FORM PlayerList 'Список игроков'
+    OBJECTS players = Player
+    PROPERTIES (players) number, playerName, teamName, NEW, DELETE
+    ORDER number(players), teamName(players), playerName(players)
+;
+
+FORM BestPlayers 'Список бомбардиров'
+    OBJECTS best_players 'Бомбардиры' = Player
+    PROPERTIES (best_players) countGoals, playerName
+    ORDER countGoals(best_players), playerName(best_players)
+    FILTERS countGoals(best_players) > 0
+;
+
+FORM Games 'Игры'
+    OBJECTS game = Game
+    PROPERTIES (game) number, date, hostTeamName, hostGoals, guestGoals, guestTeamName, resultName, NEW, DELETE
+    ORDER number(game)
+;
+
+FORM Goals 'Голы'
+    OBJECTS goals = Goal
+    PROPERTIES (goals) number, numberGame, playerName, goals, NEW, DELETE
+    ORDER number(goals), numberGame(goals)
+;
+
+FORM TournamentBoard 'Турнирная таблица'
+    OBJECTS team = Team
+    PROPERTIES (team) place, name, gamesPlayed, gamesWon, gamesWonOT, gamesWonSO,
+        gamesLostSO, gamesLostOT, gamesLost, goalsScored, goalsConceded, points
+    ORDER place(team)
+;
+
+NAVIGATOR
+{
+    NEW FOLDER tournament 'Турнир' WINDOW toolbar FIRST
+    {
+        NEW TournamentBoard;
+        NEW Games;
+        NEW Goals;
+        NEW TeamList;
+        NEW PlayerList;
+        NEW BestPlayers;
+    }
+}
