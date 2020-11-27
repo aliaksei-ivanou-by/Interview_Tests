@@ -1,0 +1,98 @@
+// comment type 1 (1) //
+/* comment type 2 (2) */
+#pragma once
+
+#ifndef CURRENCY_H // comment type 2 (3)
+#define CURRENCY_H /* comment type 2 (4) */
+
+#include <iostream>
+
+// comment type 1 (5)//
+/* comment type 2 (6)*/
+/*
+comment type 2 (7)
+*/
+
+/* comment type 2 (8) */ class Currency
+{
+private:
+	/*
+	comment type 2 (9)
+	*/
+	std::string currencyName;
+	std::string currencyCode;
+	bool currencyActive;
+public:
+	Currency()
+		: currencyName{ "" },
+		currencyCode{ "" },
+		currencyActive{ true }
+	{}
+	// comment type 1 (10) //
+	/* comment type 2 (11) */
+	/*
+	comment type 2 (12)
+	*/
+	Currency(std::string currencyName)
+		: currencyName{ currencyName },
+		currencyCode{ "" },
+		currencyActive{ true }
+	{}
+	// comment type 1 (13) //
+	/* comment type 2 (14) */
+	/*
+	comment type 2 (15)
+	*/
+	Currency(std::string /* comment type 2 (16) */currencyName, std::string currencyCode)
+		: currencyName{ currencyName },
+		currencyCode{ currencyCode },
+		currencyActive{ /* comment type 2 (26) */true }
+	{}
+	Currency(std::string currencyName, std::string currencyCode, bool currencyActive)
+		: currencyName{ currencyName },
+		currencyCode{ currencyCode },
+		currencyActive{ currencyActive }
+	{}
+	/*
+	comment type 2 (17)
+	*/
+	std::string getCurrencyName() const
+	{
+		return this->currencyName;
+	}
+	std::string getCurrencyCode() const
+	{// comment type 1 (18)
+		return this->currencyCode;// comment type 1 (19)
+	}
+	bool getCurrencyActive() const
+	{
+		return this->currencyActive;
+	}
+/*
+erber
+erb
+erreberberberb
+comment type 2 (27)
+*/
+	void setCurrencyName(std::string&& currencyName)
+	{// comment type 1 (20)
+		this->currencyName = currencyName;
+	}// comment type 1 (21)
+	friend bool operator<(const Currency& leftCurrency, const Currency& rightCurrency)
+	{
+		return (leftCurrency.getCurrencyName()) < (rightCurrency.getCurrencyName());
+	}
+	friend std::ostream& operator<<(std::ostream& outputStream, const Currency& currency)
+	{// comment type 1 (22)
+		return outputStream << currency.getCurrencyName() << '\t' <<
+			currency.getCurrencyCode() << '\t' <<
+			// comment type 1 (28) fwefkwljkl rgklrj
+			currency.getCurrencyActive();
+	}
+};
+// comment type 1 (23) //
+/* comment type 2 (24) */
+/*
+comment type 2 (25)
+*/
+#endif
